@@ -1,3 +1,4 @@
+# Requirements for PDF Extraction Stage
 docling>=2.0.0
 docling-core>=2.0.0
 PyMuPDF>=1.22.0

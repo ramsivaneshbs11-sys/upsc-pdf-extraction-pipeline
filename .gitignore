@@ -23,12 +23,3 @@ Thumbs.db
 # Runtime / Data directories
 data/
 uploads/
-
-# Versioned test output directories
-outputs_v*/
-
-# Temporary debug/check scripts
-check_*.py
-
-# Server debug logs
-server_debug.log

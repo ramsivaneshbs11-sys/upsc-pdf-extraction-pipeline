@@ -1,16 +1,53 @@
+"""
+json_builder.py
+─────────────────
+Assembles extracted document components (text blocks, tables, images, metadata)
+into the standardized final output JSON format.
+
+JSON Schema:
+  {
+    "document_metadata": { ... },
+    "extraction_summary": { ... },
+    "text_blocks": [ ... ],
+    "tables": [ ... ],
+    "page_images": [ ... ]
+  }
+"""
+
 import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger("json_builder")
 
-def build_structured_json(extracted_data: Dict[str, Any], pdf_path: Path, validation_report: Dict[str, Any], output_json_path: Path) -> Path:
+
+def build_structured_json(
+    extracted_data: Dict[str, Any],
+    pdf_path: Path,
+    validation_report: Dict[str, Any],
+    output_json_path: Path
+) -> Path:
+    """
+    Assembles extracted data into the standardized JSON output schema and writes to disk.
+
+    Args:
+        extracted_data: Output dict from docling_extractor.extract_document()
+        pdf_path: Path to source input PDF file
+        validation_report: Report dict from document_validator.validate_pdf()
+        output_json_path: Path where output JSON should be saved
+
+    Returns:
+        Path to saved JSON file.
+    """
     output_json_path.parent.mkdir(parents=True, exist_ok=True)
+
     text_blocks = extracted_data.get("text_blocks", [])
     tables = extracted_data.get("tables", [])
     page_images = extracted_data.get("page_images", [])
+
+    # Calculate summary statistics
     total_blocks = len(text_blocks)
     boilerplate_count = sum(1 for b in text_blocks if b.get("is_boilerplate"))
     corrected_count   = sum(1 for b in text_blocks if b.get("was_corrected"))
@@ -39,6 +76,7 @@ def build_structured_json(extracted_data: Dict[str, Any], pdf_path: Path, valida
         "page_images": page_images
     }
 
+    # Write formatted JSON to disk
     with open(output_json_path, "w", encoding="utf-8") as f:
         json.dump(schema, f, indent=2, ensure_ascii=False)
 

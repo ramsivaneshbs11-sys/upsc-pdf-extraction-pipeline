@@ -1,5 +1,12 @@
+"""
+models.py
+──────────
+Pydantic data models for extraction data structures.
+"""
+
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
+
 
 class BoundingBox(BaseModel):
     left: float
@@ -7,11 +14,13 @@ class BoundingBox(BaseModel):
     right: float
     bottom: float
 
+
 class EntityItem(BaseModel):
     text: str
     label: str
     start: int
     end: int
+
 
 class TextBlock(BaseModel):
     block_id: str
@@ -25,6 +34,7 @@ class TextBlock(BaseModel):
     raw_text: Optional[str] = None
     entities: List[EntityItem] = Field(default_factory=list)
 
+
 class TableItem(BaseModel):
     table_id: str
     page_num: int = Field(ge=1)
@@ -34,6 +44,7 @@ class TableItem(BaseModel):
     row_count: int = 0
     column_count: int = 0
 
+
 class DocumentMetadata(BaseModel):
     file_name: str
     file_path: str
@@ -41,6 +52,7 @@ class DocumentMetadata(BaseModel):
     page_count: int
     extracted_at: str
     extractor_engine: str = "Docling v2.0"
+
 
 class ExtractionSummary(BaseModel):
     total_blocks: int
@@ -50,6 +62,7 @@ class ExtractionSummary(BaseModel):
     table_count: int
     image_count: int
     total_ner_entities: int
+
 
 class ExtractedDocument(BaseModel):
     document_metadata: DocumentMetadata

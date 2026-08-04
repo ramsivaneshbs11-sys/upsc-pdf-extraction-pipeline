@@ -1,5 +1,10 @@
 version: '3.8'
+
 services:
+  # ──────────────────────── Qdrant Vector Database ─────────────────────────
+  # Stores collections per classification:
+  #   - history_collection
+  #   - anthropology_collection
   qdrant:
     image: qdrant/qdrant:latest
     container_name: qdrant_db
@@ -9,5 +14,6 @@ services:
       - "6334:6334"
     volumes:
       - qdrant_storage:/qdrant/storage
+
 volumes:
   qdrant_storage:

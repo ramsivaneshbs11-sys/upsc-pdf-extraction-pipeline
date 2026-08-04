@@ -1,8 +1,13 @@
+# API server dependencies
 fastapi>=0.115.0
 uvicorn>=0.30.0
 sqlalchemy>=2.0.0
 psycopg2-binary>=2.9.0
 python-multipart>=0.0.9
 python-dotenv>=1.0.0
+
+# Embedding
 sentence-transformers>=3.0.0
+
+# Vector database
 qdrant-client>=1.9.0

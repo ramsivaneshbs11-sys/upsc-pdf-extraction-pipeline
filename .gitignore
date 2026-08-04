@@ -1,0 +1,34 @@
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.venv/
+venv/
+ENV/
+
+# Project-specific input/output directories
+inputs/
+outputs/
+preprocessed/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environments and Secrets
+.env
+
+# Runtime / Data directories
+data/
+uploads/
+
+# Versioned test output directories
+outputs_v*/
+
+# Temporary debug/check scripts
+check_*.py
+
+# Server debug logs
+server_debug.log

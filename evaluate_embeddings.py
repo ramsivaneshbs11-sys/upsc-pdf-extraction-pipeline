@@ -1,21 +1,18 @@
 """
 evaluate_embeddings.py
 ───────────────────────
-Evaluates 7 top embedding models on preprocessed UPSC RAG chunks based on
+Evaluates candidate embedding models on preprocessed UPSC RAG chunks based on
 the metrics defined in embedding_evaluation_metrics.md.
 
-Target 7 Models:
+Target Embedding Models:
   1. BAAI/bge-base-en-v1.5 (BGE Base - 768 dim)
-  2. BAAI/bge-m3 (BGE M3 - 1024 dim)
-  3. BAAI/bge-small-en-v1.5 (BGE Small - 384 dim)
-  4. Qwen/Qwen2.5-0.5B-Instruct (Qwen2.5 0.5B - 896 dim)
-  5. intfloat/e5-base-v2 (E5 Base / KiwiMate - 768 dim)
-  6. mixedbread-ai/mxbai-embed-large-v1 (Mxbai Embed Large - 1024 dim)
-  7. Snowflake/snowflake-arctic-embed-m (Snowflake Arctic Embed - 768 dim)
+  2. BAAI/bge-small-en-v1.5 (BGE Small - 384 dim)
+  3. intfloat/e5-base-v2 (E5 Base / KiwiMate - 768 dim)
+  4. Snowflake/snowflake-arctic-embed-m (Snowflake Arctic Embed - 768 dim)
 
 Usage:
-  python evaluate_embeddings.py                # Evaluates all 7 candidate models
-  python evaluate_embeddings.py --model qwen   # Evaluates ONLY a specific model
+  python evaluate_embeddings.py                 # Evaluates all candidate models
+  python evaluate_embeddings.py --model bge_base # Evaluates ONLY a specific model
 """
 
 import time
@@ -34,7 +31,7 @@ from app.core.config import BASE_DIR
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("evaluate_embeddings")
 
-# ── 7 Candidate Embedding Models ──────────────────────────────────────────────
+# ── Candidate Embedding Models ────────────────────────────────────────────────
 ALL_EVAL_MODELS = [
     {
         "id_key": "bge_base",
@@ -43,22 +40,22 @@ ALL_EVAL_MODELS = [
         "collection": "history_bge_base",
     },
     {
-        "id_key": "bgem3",
-        "name": "BGE-M3 (BAAI/bge-m3)",
-        "model_id": "BAAI/bge-m3",
-        "collection": "history_bge_m3",
-    },
-    {
         "id_key": "bge_small",
         "name": "BGE-Small (BAAI/bge-small-en-v1.5)",
         "model_id": "BAAI/bge-small-en-v1.5",
         "collection": "history_bge_small",
     },
     {
-        "id_key": "bge_large",
-        "name": "BGE-Large (BAAI/bge-large-en-v1.5)",
-        "model_id": "BAAI/bge-large-en-v1.5",
-        "collection": "history_bge_large",
+        "id_key": "uae_large",
+        "name": "UAE-Large-V1 (whereisAI/UAE-Large-V1)",
+        "model_id": "whereisAI/UAE-Large-V1",
+        "collection": "history_uae_large",
+    },
+    {
+        "id_key": "gemini",
+        "name": "Google Gemini (text-embedding-004)",
+        "model_id": "text-embedding-004",
+        "collection": "history_gemini",
     },
     {
         "id_key": "e5",
@@ -67,18 +64,70 @@ ALL_EVAL_MODELS = [
         "collection": "history_kiwimate_e5",
     },
     {
-        "id_key": "mxbai",
-        "name": "Mxbai-Embed (mixedbread-ai/mxbai-embed-large-v1)",
-        "model_id": "mixedbread-ai/mxbai-embed-large-v1",
-        "collection": "history_mxbai",
-    },
-    {
         "id_key": "arctic",
         "name": "Snowflake-Arctic (Snowflake/snowflake-arctic-embed-m)",
         "model_id": "Snowflake/snowflake-arctic-embed-m",
         "collection": "history_arctic",
     },
 ]
+
+class GeminiEmbedder:
+    """Wrapper class for Google Gemini text-embedding-004 model API."""
+    def __init__(self, api_key: str | None = None):
+        import os
+        from google import genai
+        key = api_key or os.environ.get("GEMINI_API_KEY")
+        if not key:
+            raise ValueError(
+                "GEMINI_API_KEY environment variable is required to evaluate Google Gemini text-embedding-004. "
+                "Please set GEMINI_API_KEY in your environment or .env file."
+            )
+        self.client = genai.Client(api_key=key)
+
+    def encode(self, texts, batch_size=16, show_progress_bar=False):
+        import time
+        import numpy as np
+
+        def _get_vec(res):
+            if hasattr(res, "embeddings") and res.embeddings:
+                return res.embeddings[0].values
+            elif hasattr(res, "embedding") and res.embedding:
+                return res.embedding.values
+            raise ValueError(f"Unknown Gemini response structure: {res}")
+
+        if isinstance(texts, str):
+            res = self.client.models.embed_content(
+                model="gemini-embedding-001",
+                contents=texts
+            )
+            return np.array(_get_vec(res))
+
+        all_vecs = []
+        for idx, text in enumerate(texts):
+            if idx > 0 and idx % 90 == 0:
+                logger.info(f"Pacing Gemini API requests ({idx}/{len(texts)})... sleeping 35s to respect 100 RPM free tier quota")
+                time.sleep(35)
+
+            for attempt in range(5):
+                try:
+                    res = self.client.models.embed_content(
+                        model="gemini-embedding-001",
+                        contents=text
+                    )
+                    all_vecs.append(_get_vec(res))
+                    time.sleep(0.65)  # Pace call speed to avoid bursts
+                    break
+                except Exception as exc:
+                    if "429" in str(exc) or "RESOURCE_EXHAUSTED" in str(exc):
+                        wait_sec = 40
+                        logger.warning(f"Gemini API 429 Rate Limit (Free Tier 100 RPM). Pausing {wait_sec}s (Attempt {attempt+1}/5)...")
+                        time.sleep(wait_sec)
+                    else:
+                        logger.error(f"Error calling Gemini API: {exc}")
+                        time.sleep(2)
+                        if attempt == 4:
+                            raise exc
+        return np.array(all_vecs)
 
 # ── Metrics Helper Functions ──────────────────────────────────────────────────
 
@@ -209,15 +258,23 @@ def evaluate_embedding_models(selected_model_key: str | None = None):
         try:
             # 1. Load Model
             start_load = time.time()
-            model = SentenceTransformer(model_id, trust_remote_code=True)
-            if hasattr(model, "tokenizer") and model.tokenizer and getattr(model.tokenizer, "pad_token", None) is None:
-                model.tokenizer.pad_token = model.tokenizer.eos_token
+            if model_info.get("id_key") == "gemini":
+                model = GeminiEmbedder()
+            else:
+                model = SentenceTransformer(model_id, trust_remote_code=True)
+                if hasattr(model, "tokenizer") and model.tokenizer and getattr(model.tokenizer, "pad_token", None) is None:
+                    model.tokenizer.pad_token = model.tokenizer.eos_token
             load_time = time.time() - start_load
             logger.info(f"Model loaded in {load_time:.2f} seconds.")
 
             # 2. Generate Embeddings & Measure Indexing Time
             start_index = time.time()
-            texts = [c["text"] for c in chunks]
+            id_k = model_info.get("id_key")
+            if id_k == "e5":
+                texts = ["passage: " + c["text"] for c in chunks]
+            else:
+                texts = [c["text"] for c in chunks]
+
             logger.info(f"Generating embeddings for {len(texts)} chunks...")
             embeddings = model.encode(texts, batch_size=16, show_progress_bar=True)
             index_time = time.time() - start_index
@@ -249,8 +306,15 @@ def evaluate_embedding_models(selected_model_key: str | None = None):
             latencies_ms = []
 
             for eq in eval_queries:
-                q_text = eq["query"]
+                raw_q = eq["query"]
                 target_id = eq["expected_chunk_id"]
+
+                if id_k == "e5":
+                    q_text = "query: " + raw_q
+                elif id_k in ["arctic", "uae_large"]:
+                    q_text = "Represent this sentence for searching relevant passages: " + raw_q
+                else:
+                    q_text = raw_q
 
                 t0 = time.time()
                 q_vec = model.encode(q_text).tolist()
@@ -325,7 +389,7 @@ if __name__ == "__main__":
         "--model",
         type=str,
         default=None,
-        help="Target model key to evaluate (e.g. bge_base, bgem3, bge_small, qwen, e5, mxbai, arctic)."
+        help="Target model key to evaluate (e.g. bge_base, bge_small, e5, arctic)."
     )
     args = parser.parse_args()
 

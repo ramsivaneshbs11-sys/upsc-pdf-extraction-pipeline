@@ -17,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from extraction.document_validator import validate_pdf, audit_extraction
+from extraction.extraction_validator import audit_extraction_coverage_and_quality
 from extraction.docling_extractor import extract_document
 from extraction.json_builder import build_structured_json
 from extraction.config import DEFAULT_OUTPUT_DIR
@@ -51,18 +52,21 @@ def process_single_pdf(pdf_path: Path, output_dir: Path) -> bool:
 
     # 3. Save JSON Output
     logger.info("Step 3: Building and saving structured JSON...")
-    json_name = f"{pdf_path.stem}_extracted.json"
+    json_name = f"{pdf_path.stem.strip()}_extracted.json"
     json_out_path = output_dir / json_name
     build_structured_json(extracted_data, pdf_path, val_report, json_out_path)
 
-    # 4. QA Audit
-    logger.info("Step 4: Running QA Audit on extracted JSON...")
+    # 4. QA & Coverage Audit
+    logger.info("Step 4: Running QA & Coverage Audit on extracted JSON...")
     audit_results = audit_extraction(json_out_path)
+    coverage_report = audit_extraction_coverage_and_quality(json_out_path, val_report["page_count"])
+
     passed_rules = sum(1 for v in audit_results.values() if v is True)
 
     print("\n" + "=" * 60)
     print(f"  EXTRACTION COMPLETE: {json_out_path.name}")
     print(f"  QA Audit Score: {passed_rules}/9 rules passed")
+    print(f"  Page Coverage: {coverage_report['covered_pages_count']}/{val_report['page_count']} pages ({coverage_report['coverage_percentage']}%)")
     print("=" * 60 + "\n")
 
     return True

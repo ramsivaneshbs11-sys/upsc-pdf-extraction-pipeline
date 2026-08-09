@@ -177,14 +177,25 @@ def audit_extraction(json_path: Path) -> Dict[str, Any]:
     )
 
     # Rule 5: Block types valid
-    valid_types = {"heading", "paragraph", "list_item", "caption", "footnote", "header", "footer", "table"}
+    # Includes pipeline-generated structural types:
+    #   blank_page        — emitted by block_cleaner for cover/boilerplate-only pages
+    #   exercise_heading  — tagged by boilerplate_detector for "Check Your Progress" sections
+    #   toc_page_number   — tagged by boilerplate_detector for ToC page-number tokens
+    valid_types = {
+        "heading", "paragraph", "list_item", "caption", "footnote",
+        "header", "footer", "table",
+        "blank_page", "exercise_heading", "toc_page_number"
+    }
     audit["rule_5_block_types_valid"] = all(
         b.get("type") in valid_types for b in blocks
     )
 
     # Rule 6: Non-empty block text
+    # blank_page markers intentionally have empty text — exempt them from this check.
     audit["rule_6_non_empty_text"] = all(
-        isinstance(b.get("text"), str) and len(b.get("text").strip()) > 0 for b in blocks
+        b.get("type") == "blank_page" or
+        (isinstance(b.get("text"), str) and len(b.get("text").strip()) > 0)
+        for b in blocks
     )
 
     # Rule 7: Boilerplate tagged

@@ -11,14 +11,22 @@ Boilerplate types detected:
      - "Page X of Y", "Page X", bare numbers at top/bottom margin.
   3. Publisher / Copyright Notice
      - "All Rights Reserved", "For internal use only", website URLs, phone numbers.
+     NOTE: Academic bibliography/reference entries are NOT classified as copyright.
   4. Table of Contents / Index Line
      - Lines of dots leading to a page number (e.g. "Chapter 1 ........ 12").
+     - ToC page number tokens are classified as "toc_page_number".   [Issue #2]
   5. Watermark / Background Text
-     - Common overlay phrases: "DRAFT", "CONFIDENTIAL", "SAMPLE ONLY", coaching institute names.
+     - Common overlay phrases: "DRAFT", "CONFIDENTIAL", "SAMPLE ONLY".
+  6. Bibliography / Reference Entry                                   [Issue #8]
+     - Academic citation entries (Author. Year. Title...) retained with is_boilerplate=False
+  7. Exercise Headings                                                [Issue #9]
+     - "Check Your Progress" sections tagged as "exercise_heading", NOT stripped
 
 Output field added to block dicts:
   "is_boilerplate": bool
-  "boilerplate_type": str | None   ("header" | "footer" | "copyright" | "toc" | "watermark")
+  "boilerplate_type": str | None   ("header" | "footer" | "copyright" | "toc" |
+                                    "toc_page_number" | "watermark" | "bibliography" |
+                                    "exercise_heading" | "repeating_header_footer")
 """
 
 import re
@@ -41,6 +49,15 @@ HEADER_PATTERNS = [
     r"(?i)^\s*insights\s+on\s+india\s*",
     r"(?i)^\s*forum\s+ias\s*",
     r"(?i)^\s*byju'?s\s+classes\s*",
+    # Running unit/chapter titles in UPSC IGNOU booklets:
+    # These short titles appear at the top or bottom margin of every page and
+    # should be stripped out of the body text stream.
+    r"(?i)^\s*violence\s+and\s+repression\s*$",
+    r"(?i)^\s*modern\s+warfare\s*$",
+    r"(?i)^\s*total\s+war\s*$",
+    r"(?i)^\s*violence\s+by\s+non[-\s]state\s+actors\s*$",
+    r"(?i)^\s*unit\s+\d+\s*$",                # bare "Unit 27" style running header
+    r"(?i)^\s*block[-\s]\d+\s*$",             # bare "Block-8" style running header
 ]
 
 FOOTER_PATTERNS = [
@@ -60,11 +77,45 @@ COPYRIGHT_PATTERNS = [
     r"(?i)for\s+(internal|personal)\s+use\s+only",
     r"(?i)do\s+not\s+(copy|duplicate|reproduce|distribute)",
     r"(?i)no\s+part\s+of\s+this\s+(publication|document)\s+may\s+be",
-    r"(?i)https?://[^\s]+",
     r"(?i)www\.[a-z0-9\-]+\.[a-z]{2,}",
     r"(?i)email\s*:\s*[^\s]+@[^\s]+",
-    r"(?i)call\s*/?\s*whatsapp\s*:\s*\+?\d[\d\s\-]{8,}",
+    r"(?i)call\s*/?s*whatsapp\s*:\s*\+?\d[\d\s\-]{8,}",
     r"(?i)contact\s*:\s*\+?\d[\d\s\-]{8,}",
+    # NOTE: https?:// URLs are intentionally NOT included here —
+    #       academic bibliography entries often contain DOI/URL links.
+    #       URL detection is handled via a separate pass with context-awareness.
+]
+
+# ── Issue #8: Bibliography / Reference Entry Detection ───────────────────────
+# Academic citations typically start with: Author surname, Firstname. Year.
+# They are NOT boilerplate — they are valid scholarly metadata.
+# These patterns identify citation-style strings so we can AVOID mis-classifying them.
+BIBLIOGRAPHY_PATTERNS = [
+    # "Surname, Firstname. 1999." — standard academic citation format
+    r"^[A-Z][a-zA-Z\-]+,\s+[A-Z][a-zA-Z\s\.]+\.\s+\d{4}\.",
+    # "Author. Year. 'Title'" — common variation
+    r"^[A-Z][a-zA-Z\s\-]+\.\s+\d{4}\.\s+['\"\u2018\u2019\u201c\u201d]",
+    # DOI pattern — starts with "doi:" or "https://doi.org"
+    r"(?i)^doi\s*:\s*(10\.\d{4,})",
+    r"(?i)https?://doi\.org/",
+    r"(?i)https?://dx\.doi\.org/",
+    r"(?i)https?://[a-z]+\.jstor\.org/stable/",
+    r"(?i)https?://[a-z]+\.luminosoa\.org/",
+    # Academic journal title patterns (common indicators that this is a reference)
+    r"(?i)\bProceedings\s+of\s+the\s+Indian\s+History\s+Congress\b",
+    r"(?i)\bModern\s+Asian\s+Studies\b",
+    r"(?i)\bThe\s+Journal\s+of\s+Asian\s+Studies\b",
+]
+
+# ── Issue #9: Exercise Heading Detection ─────────────────────────────────────
+# "Check Your Progress" sections are pedagogical content, NOT boilerplate.
+# They should be tagged but NOT suppressed (is_boilerplate remains False).
+EXERCISE_HEADING_PATTERNS = [
+    r"(?i)^\s*check\s+your\s+progress\s*[-–]?\s*\d*\s*$",
+    r"(?i)^\s*intext\s+questions?\s*\d*\s*$",
+    r"(?i)^\s*self\s+assessment\s+questions?\s*\d*\s*$",
+    r"(?i)^\s*activity\s+\d+\s*$",
+    r"(?i)^\s*terminal\s+questions?\s*$",
 ]
 
 TOC_PATTERNS = [
@@ -85,11 +136,13 @@ WATERMARK_PATTERNS = [
 
 # ── 2. COMPILED REGEXES ───────────────────────────────────────────────────────
 
-COMPILED_HEADER    = [re.compile(p) for p in HEADER_PATTERNS]
-COMPILED_FOOTER    = [re.compile(p) for p in FOOTER_PATTERNS]
-COMPILED_COPYRIGHT = [re.compile(p) for p in COPYRIGHT_PATTERNS]
-COMPILED_TOC       = [re.compile(p) for p in TOC_PATTERNS]
-COMPILED_WATERMARK = [re.compile(p) for p in WATERMARK_PATTERNS]
+COMPILED_HEADER       = [re.compile(p) for p in HEADER_PATTERNS]
+COMPILED_FOOTER       = [re.compile(p) for p in FOOTER_PATTERNS]
+COMPILED_COPYRIGHT    = [re.compile(p) for p in COPYRIGHT_PATTERNS]
+COMPILED_TOC          = [re.compile(p) for p in TOC_PATTERNS]
+COMPILED_WATERMARK    = [re.compile(p) for p in WATERMARK_PATTERNS]
+COMPILED_BIBLIOGRAPHY = [re.compile(p) for p in BIBLIOGRAPHY_PATTERNS]
+COMPILED_EXERCISE     = [re.compile(p) for p in EXERCISE_HEADING_PATTERNS]
 
 
 # ── 3. DETECTOR CLASS ─────────────────────────────────────────────────────────
@@ -130,6 +183,20 @@ class BoilerplateDetector:
         bottom_y = bbox[3] if (bbox and len(bbox) >= 4) else None
         ph = page_height or self.page_height
 
+        # ── Issue #9: Exercise headings — tag but do NOT mark as boilerplate ──
+        for rx in COMPILED_EXERCISE:
+            if rx.search(text):
+                block["is_boilerplate"] = False
+                block["boilerplate_type"] = "exercise_heading"
+                block["type"] = "exercise_heading"
+                return block
+
+        # ── Issue #8: Bibliography entries — protect from copyright mis-classification ──
+        if self._is_bibliography_entry(text):
+            block["is_boilerplate"] = False
+            block["boilerplate_type"] = "bibliography"
+            return block
+
         b_type = self._check_text_and_position(text, top_y, bottom_y, ph)
 
         if b_type:
@@ -146,6 +213,8 @@ class BoilerplateDetector:
         Two-pass detection on full document block list:
           Pass 1: Pattern + position detection per block.
           Pass 2: Frequency analysis across pages (repeating lines on 3+ pages = header/footer).
+          Pass 3: Issue #7 — Cross-reference header contamination cleanup.
+          Pass 4: Issue #2 — ToC page number token reclassification.
         """
         # Pass 1: Pattern check
         for block in blocks:
@@ -163,15 +232,72 @@ class BoilerplateDetector:
         repeating_texts = {text for text, pages in line_page_map.items() if len(pages) >= 3}
 
         for block in blocks:
+            # Don't override exercise_heading or bibliography classifications
+            bp_type = block.get("boilerplate_type")
+            if bp_type in ("exercise_heading", "bibliography"):
+                continue
             if not block.get("is_boilerplate", False):
                 text = block.get("text", "").strip()
                 if text in repeating_texts:
                     block["is_boilerplate"] = True
                     block["boilerplate_type"] = "repeating_header_footer"
 
+        # Pass 3: Normalize block["type"] for all boilerplate blocks
+        for block in blocks:
+            if block.get("is_boilerplate"):
+                bp_type = block.get("boilerplate_type")
+                if bp_type in ("header", "repeating_header_footer"):
+                    block["type"] = "header"
+                elif bp_type == "footer":
+                    block["type"] = "footer"
+
+        # Pass 4: Issue #2 — Reclassify ToC page-number-only footer blocks on ToC pages
+        blocks = self._reclassify_toc_page_numbers(blocks)
+
         return blocks
 
     # ── PRIVATE HELPERS ───────────────────────────────────────────────────────
+
+    def _is_bibliography_entry(self, text: str) -> bool:
+        """
+        Issue #8: Returns True if the text looks like an academic bibliography entry.
+        Such entries should NEVER be classified as 'copyright' boilerplate.
+        """
+        for rx in COMPILED_BIBLIOGRAPHY:
+            if rx.search(text):
+                return True
+        return False
+
+    def _reclassify_toc_page_numbers(self, blocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Issue #2: Detect Table of Contents pages and reclassify number-only footer blocks
+        on those pages as "toc_page_number" instead of plain "footer".
+
+        A ToC page is identified by having a large collapsed paragraph block whose text
+        contains multiple theme/unit keywords (Course Contents, THEME, Unit).
+        """
+        # Identify pages that have a ToC-style content block
+        toc_pages = set()
+        toc_keywords = {"course contents", "theme", "unit", "introduction", "pages"}
+        for block in blocks:
+            text = block.get("text", "").lower()
+            if block.get("type") == "paragraph" and len(text) > 200:
+                kw_hits = sum(1 for kw in toc_keywords if kw in text)
+                if kw_hits >= 3:
+                    toc_pages.add(block.get("page_num"))
+
+        if not toc_pages:
+            return blocks
+
+        for block in blocks:
+            if block.get("page_num") in toc_pages:
+                # Number-only blocks on ToC pages are ToC page numbers, not footers
+                text = block.get("text", "").strip()
+                if re.match(r"^\d{1,4}$", text) and block.get("is_boilerplate"):
+                    block["boilerplate_type"] = "toc_page_number"
+                    block["type"] = "toc_page_number"
+
+        return blocks
 
     def _check_text_and_position(
         self,
@@ -192,15 +318,20 @@ class BoilerplateDetector:
                 return "header"
 
         # 3. Position-assisted Top Margin Header Check
-        if top_y is not None and top_y < (page_height * 0.07) and len(text) < 80:
-            if any(word in text.lower() for word in ["upsc", "paper", "module", "chapter", "notes"]):
+        # In Docling's inverted coordinate system, HIGH Y = top of page.
+        # A block is in the top margin when top_y > page_height * 0.93.
+        if top_y is not None and top_y > (page_height * 0.93) and len(text) < 80:
+            if any(word in text.lower() for word in ["upsc", "paper", "module", "chapter", "notes", "unit", "block"]):
                 return "header"
 
         # 4. Position-assisted Bottom Margin Footer Check
-        if bottom_y is not None and bottom_y > (page_height * 0.93) and len(text) < 60:
+        # LOW Y (near 0) = bottom of page in Docling coordinates.
+        # A block is in the bottom margin when top_y < page_height * 0.07.
+        if top_y is not None and top_y < (page_height * 0.07) and len(text) < 60:
             return "footer"
 
         # 5. Copyright / Contact info
+        # Issue #8: Only match copyright patterns if the block does NOT look like a bibliography entry
         for rx in COMPILED_COPYRIGHT:
             if rx.search(text):
                 return "copyright"

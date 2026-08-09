@@ -18,7 +18,7 @@ MAX_FILE_SIZE_MB = 100
 
 DOCLING_PIPELINE_OPTIONS = {
     "do_ocr": False,
-    "do_table_structure": True,
-    "generate_page_images": True,
+    "do_table_structure": True,      # Enables full HTML/DataFrame table header & row structure parsing
+    "generate_page_images": False,   
     "generate_table_images": False,
 }

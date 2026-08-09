@@ -9,6 +9,10 @@ Corrections applied:
   3. UPSC domain term normalization ("U.P.S.C." -> "UPSC", "I.A.S." -> "IAS")
   4. De-duplication of accidental repeated words ("the the" -> "the")
   5. Whitespace normalization (collapsing multiple spaces/newlines)
+  6. URL whitespace normalization (spaces inside URL paths removed)         [Issue #11]
+  7. Fused-word OCR split fix (e.g. "monotheistsant" -> "monotheist saint") [Issue #5]
+  8. Split-word OCR join fix (e.g. "V ol." -> "Vol.", "Y ork" -> "York")    [Issue #12]
+  9. Running-header tail stripping from paragraph ends                       [Issue #6]
 
 Output field added/updated in block dicts:
   "text": corrected text string
@@ -36,24 +40,258 @@ DOMAIN_TERM_MAP = {
     r"\bC\.E\.\b": "CE",
 }
 
-# OCR Character fixes
+# OCR Character & PUA Glyph fixes
 CHAR_REPLACEMENTS = {
-    "“": '"',
-    "”": '"',
-    "‘": "'",
-    "’": "'",
-    "—": "-",
-    "–": "-",
-    "…": "...",
+    "\u201c": '"',
+    "\u201d": '"',
+    "\u2018": "'",
+    "\u2019": "'",
+    "\u2014": "-",
+    "\u2013": "-",
+    "\u2026": "...",
     "\xa0": " ",       # Non-breaking space
     "\u200b": "",      # Zero-width space
-    "ﬁ": "fi",         # Ligature fi
-    "ﬂ": "fl",         # Ligature fl
-    "ﬀ": "ff",         # Ligature ff
-    "ﬃ": "ffi",        # Ligature ffi
+    "\ufb01": "fi",         # Ligature fi
+    "\ufb02": "fl",         # Ligature fl
+    "\ufb00": "ff",         # Ligature ff
+    "\ufb03": "ffi",        # Ligature ffi
+    # Spurious diacritics / OCR glyph corruption
+    "\u00cd": "I",
+    "\u00ed": "i",
+    "\u0146": "n",
+    # PUA Symbol / Wingdings Font Glyph Mappings (Issue 4 fix)
+    "\uf050": "✓",
+    "\uf051": "✓",
+    "\uf052": "✓",
+    "\uf078": "✗",
+    "\uf0a7": "•",
+    "\uf0b7": "•",
+    "\uf0d8": "➢",
+    "\uf0e0": "✉",
+    "\uf020": " ",
 }
 
+# OCR Confusion Pair Replacements
+OCR_CONFUSION_MAP = {
+    r"\bThls\b": "This",
+    r"\bthls\b": "this",
+    r"\bsublecl\b": "subject",
+    r"\bcondillon\b": "condition",
+    r"\bcondillons\b": "conditions",
+    r"\bthal\b": "that",
+    r"\bil\b": "it",
+    r"\bnol\b": "not",
+    r"\{ho\b": "the",
+    r"\blo\b": "to",
+    r"\bwhlch\b": "which",
+    r"\bwilh\b": "with",
+    r"\bElforn\b": "Ellora",
+    r"\bTempte\b": "Temple",
+    # ── Issue 6: OCR/character fixes for reported extraction issues ─────────────
+    r"\baud\b": "and",
+    r"\bAud\b": "And",
+    r"\bThiugs\b": "Things",
+    r"\bthiugs\b": "things",
+    r"\bPreachiug\b": "Preaching",
+    r"\bpreachiug\b": "preaching",
+    r"\bfiņd\b": "find",
+    r"\bTne\b": "The",
+    r"\bI'he\b": "The",
+    r"\beaste['']?n\b": "eastern",
+    r"\brnle\b": "rule",
+    r"\bFhe\b": "The",
+    r"\bgrealust\b": "greatest",
+    r"\bsurious\b": "serious",
+    r"\bsurhus\b": "serious",
+    r"\bmeanirig\b": "meaning",
+    r"\bterins\b": "terms",
+    r"\bSyslem\b": "System",
+    r"\bfoumndations\b": "foundations",
+    r"\bfoumndatios\b": "foundations",
+    r"\bHinduslan\b": "Hindustan",
+    r"\bHíndu\b": "Hindu",
+    r"\bÍndia\b": "India",
+    r"\bgrulling\b": "gruelling",
+    r"\bGrulling\b": "Gruelling",
+    r"\bplebianize\b": "plebeianize",
+    r"\bPlebianize\b": "Plebeianize",
+    r"\bKesselschlact\b": "Kesselschlacht",
+    r"\bkesselschlact\b": "kesselschlacht",
+    r"\bSull[- ]k[iu]tl?\b": "Sulh-kul",
+    r"\bentrused\b": "entrusted",
+    r"\breligon\b": "religion",
+    r"\bunifed\b": "unified",
+    r"\bcial\b": "social",
+    r"SOCIAL SCIENCE PART 1 SOCIAL SCIENCE - PART 1": "SOCIAL SCIENCE - PART I",
+    r"SOCIAL SCIENCE - PART 1 SOCIAL SCIENCE - PART 1": "SOCIAL SCIENCE - PART I",
+    # ── Issue #5: Fused OCR word fixes ──────────────────────────────────────────
+    # "monotheistsant" is an OCR fusion of "monotheist saint"
+    r"\bmonotheistsant\b": "monotheist saint",
+    r"\bMonotheistsant\b": "Monotheist Saint",
+    # Other common word fusions observed in IGNOU booklets
+    r"\bSikhismsant\b": "Sikhism saint",
+    r"\bHindusiant\b": "Hindu saint",
+    r"\bBhaktisant\b": "Bhakti saint",
+    r"\bgurubhakti\b": "guru bhakti",
+    r"\bGurubhakti\b": "Guru Bhakti",
+    r"\bRajputstate\b": "Rajput state",
+    r"\brajputstate\b": "Rajput state",
+    r"\bMughalcourt\b": "Mughal court",
+    r"\bmughalcourt\b": "Mughal court",
+    r"\bMughalempire\b": "Mughal Empire",
+    r"\bmughalempire\b": "Mughal Empire",
+    r"\bSubahdar\b": "Subahdar",
+}
+
+# ── Issue #12: Split-word OCR join patterns ────────────────────────────────────
+# These are pairs where OCR inserted a space inside a single word.
+# Applied as regex substitutions with word boundaries to avoid false positives.
+SPLIT_WORD_FIXES = [
+    # "V ol." → "Vol.", "V olume" → "Volume"
+    (re.compile(r"\bV\s+ol\."), "Vol."),
+    (re.compile(r"\bV\s+olume\b"), "Volume"),
+    # "Y ork" → "York"
+    (re.compile(r"\bY\s+ork\b"), "York"),
+    # "V ernacular" → "Vernacular"
+    (re.compile(r"\bV\s+ernacular"), "Vernacular"),
+    # "MiddleEastern" → "Middle Eastern" (missing space between words)
+    (re.compile(r"\bMiddleEastern\b"), "Middle Eastern"),
+    (re.compile(r"\bmiddleeastern\b", re.IGNORECASE), "Middle Eastern"),
+    # "CentralAsian" → "Central Asian"
+    (re.compile(r"\bCentralAsian\b"), "Central Asian"),
+    # "SouthAsian" → "South Asian"
+    (re.compile(r"\bSouthAsian\b"), "South Asian"),
+    # "NorthIndia" → "North India" (when not a known compound proper noun)
+    (re.compile(r"\bNorthIndia\b"), "North India"),
+    (re.compile(r"\bSouthIndia\b"), "South India"),
+    # "S hah" → "Shah", "K han" → "Khan" (OCR space splits in names)
+    (re.compile(r"\bS\s+hah\b"), "Shah"),
+    (re.compile(r"\bK\s+han\b"), "Khan"),
+    (re.compile(r"\bK\s+hafi\b"), "Khafi"),
+    # "ImreBangha" → "Imre Bangha" (joined author names in bibliography)
+    (re.compile(r"\bImreBangha\b"), "Imre Bangha"),
+    # "Perso-Islamic" — keep hyphen; fix if split
+    (re.compile(r"\bPerso\s+-\s+Islamic\b"), "Perso-Islamic"),
+    # "Sabk-i Hindi" — keep as-is; fix broken variants
+    (re.compile(r"\bSabk\s+-\s+i\s+Hindi\b"), "Sabk-i Hindi"),
+    # "Rekhta" variants
+    (re.compile(r"\bNagari\s+Rekhta\b"), "Nagari Rekhta"),
+    # "ChandarBhan" → "Chandar Bhan"
+    (re.compile(r"\bChandarBhan\b"), "Chandar Bhan"),
+    # Generic: "Andhara" → "Andhra" (common OCR variant)
+    (re.compile(r"\bAndhara\s+Pradesh\b"), "Andhra Pradesh"),
+]
+
+# ── Issue #6: Running-header strings that may be contaminating paragraph ends ──
+# These are exact phrases used as running chapter headers in IGNOU booklets.
+# If a paragraph block ends with one of these phrases, the trailing phrase is stripped.
+RUNNING_HEADER_PHRASES = [
+    "Persian Histories and Memoirs",
+    "Sources and Literary Traditions",
+    "History of India-VII",
+    "History of India-VI",
+    "History of Modern Europe",
+    "History of China",
+    "Political Processes",
+    "Production and Commercial Practices",
+    "State, Society and Religion",
+    "Visual Culture",
+    "Society and Culture",
+    "The 18th Century",
+    "Mughal Decline and Disintegration",
+    "Sanskrit Kavya Literature, Regional Sources and Travelogues",
+    "Indian Ocean Trade Network",
+    "Trading Communities and Commercial Practices",
+    "Religious Ideas and Movements",
+    "Courtly Culture",
+    "Women and Gender",
+]
+
+# Build regex for trailing running-header detection at paragraph end.
+# Matches the header phrase possibly preceded by a space, at string end.
+_HEADER_TAIL_PATTERNS = [
+    re.compile(r"\s*" + re.escape(phrase) + r"\s*$")
+    for phrase in RUNNING_HEADER_PHRASES
+]
+
+# ── Issue #11: URL whitespace normalization ────────────────────────────────────
+# Removes stray spaces inside URL segments (common in scanned PDFs where
+# the space-bar key width causes splits inside path tokens).
+_URL_SPACE_REGEX = re.compile(
+    r"(https?://\S*?)\s+(\S*(?:\.[a-zA-Z]{2,}|/)\S*)"
+)
+
+def _normalize_url_spaces(text: str) -> str:
+    """Collapse whitespace injected inside URL paths by the scanner."""
+    # Iteratively collapse spaces inside URL-like sequences
+    # Pattern: http://... <space> path_fragment
+    prev = None
+    while prev != text:
+        prev = text
+        text = _URL_SPACE_REGEX.sub(r"\1\2", text)
+    return text
+
+
+# ── Issue #6: Strip running-header suffix from paragraph text ─────────────────
+
+def _strip_running_header_tail(text: str) -> str:
+    """
+    If the paragraph text ends with a known running-header phrase
+    (e.g. '...due to the Persian Histories and Memoirs'),
+    strip that trailing header phrase.
+    """
+    for pattern in _HEADER_TAIL_PATTERNS:
+        stripped = pattern.sub("", text)
+        if stripped != text:
+            logger.debug(f"Stripped running-header tail from paragraph: ...{text[-60:]!r}")
+            return stripped.rstrip()
+    return text
+
+
+# ── Issue #6b: Strip running-header injected mid-paragraph ────────────────────
+# Handles cases where the header text is injected mid-sentence rather than just at the end.
+def _strip_running_header_inline(text: str) -> str:
+    """
+    If a known running-header phrase appears inline within paragraph text
+    (inserted by OCR between two words of the same sentence), remove it.
+    """
+    for phrase in RUNNING_HEADER_PHRASES:
+        # Match the phrase when it appears sandwiched between word characters
+        # e.g. "Nainsi ri Khyat Sources and Literary Traditions and Marwar"
+        # We look for the phrase surrounded by spaces (not at start/end)
+        pattern = re.compile(r"(?<=\w)\s+" + re.escape(phrase) + r"\s+(?=\w)")
+        match = pattern.search(text)
+        if match:
+            # Replace the injected header phrase (with surrounding spaces) with a single space
+            text = text[:match.start()] + " " + text[match.end():]
+            logger.debug(f"Stripped inline running-header: {phrase!r}")
+    return text
+
+
+# ── Foreign/technical terms italic emphasis ────────────────────────────────────
+# Issue 6 fix (original): Foreign/technical terms that should be emphasised with markdown *italics*
+FOREIGN_TERMS_TO_EMPHASIZE = [
+    "schwerpunkt",
+    "auftragstaktik",
+    "blitzkrieg",
+    "levee en masse",
+    "volk",
+    "volksgemeinschaft",
+    "jihad",
+    "jehad",
+    "ghazi",
+    "Kesselschlacht",
+    "kesselschlacht",
+]
+
+# Compiled regex patterns for foreign-term emphasis (whole-word, case-sensitive)
+_FOREIGN_TERM_REGEXES = [
+    (re.compile(r"(?<![*])\b(" + re.escape(term) + r")\b(?![*])"), r"*\1*")
+    for term in FOREIGN_TERMS_TO_EMPHASIZE
+]
+
 COMPILED_DOMAIN_TERMS = [(re.compile(pattern), repl) for pattern, repl in DOMAIN_TERM_MAP.items()]
+COMPILED_OCR_TERMS = [(re.compile(pattern), repl) for pattern, repl in OCR_CONFUSION_MAP.items()]
 HYPHEN_LINEBREAK_REGEX = re.compile(r"(\b[a-zA-Z]{2,})-\s*\n\s*([a-zA-Z]{2,}\b)")
 REPEATED_WORD_REGEX   = re.compile(r"\b([a-zA-Z]{3,})\s+\1\b", re.IGNORECASE)
 MULTIPLE_SPACES_REGEX = re.compile(r"[ \t]{2,}")
@@ -92,12 +330,35 @@ class ContentCorrector:
         for regex, replacement in COMPILED_DOMAIN_TERMS:
             corrected = regex.sub(replacement, corrected)
 
-        # Rule 4: Remove accidental duplicate words ("the the" -> "the")
+        # Rule 4: OCR Character Swap & Confusion Repair (includes fused-word fixes Issue #5)
+        for regex, replacement in COMPILED_OCR_TERMS:
+            corrected = regex.sub(replacement, corrected)
+
+        # Rule 4b: Issue #12 — Split-word OCR joins ("V ol." -> "Vol.", "MiddleEastern" -> "Middle Eastern")
+        for pattern, replacement in SPLIT_WORD_FIXES:
+            corrected = pattern.sub(replacement, corrected)
+
+        # Rule 5: Remove accidental duplicate words ("the the" -> "the")
         corrected = REPEATED_WORD_REGEX.sub(r"\1", corrected)
 
-        # Rule 5: Whitespace Normalization
+        # Rule 6: Rejoin mangled transliteration diacritics ("Hir ṇ ayak ṣ a" -> "Hiraṇyakaṣa")
+        corrected = re.sub(r"(\w)\s+([ṇṣśñṭḍṛḷṃḥĀāĪīŪūṚṛṜṝḶḷḸḹṂṃḤḥÑñṬṭḌḍṆṇŚśṢṣ])\s*(\w)", r"\1\2\3", corrected)
+        corrected = re.sub(r"(\w)\s+([ṇṣśñṭḍṛḷṃḥĀāĪīŪūṚṛṜṝḶḷḸḹṂṃḤḥÑñṬṭḌḍṆṇŚśṢṣ])", r"\1\2", corrected)
+
+        # Rule 7: Whitespace Normalization
         corrected = MULTIPLE_SPACES_REGEX.sub(" ", corrected)
         corrected = MULTIPLE_NEWLINES_REGEX.sub("\n\n", corrected)
+
+        # Rule 8: Issue #11 — URL whitespace normalization
+        corrected = _normalize_url_spaces(corrected)
+
+        # Rule 9: Issue #6 — Strip running-header contamination (tail & inline)
+        corrected = _strip_running_header_tail(corrected)
+        corrected = _strip_running_header_inline(corrected)
+
+        # Rule 10: Issue 6 (original) — Emphasis/italic wrapping for foreign/technical terms
+        for regex, repl in _FOREIGN_TERM_REGEXES:
+            corrected = regex.sub(repl, corrected)
 
         corrected = corrected.strip()
         was_changed = (corrected != original.strip())
@@ -137,11 +398,92 @@ class ContentCorrector:
         return blocks
 
 
-# ── 3. CONVENIENCE FUNCTION ───────────────────────────────────────────────────
+# ── 3. CONVENIENCE FUNCTIONS ───────────────────────────────────────────────────
+
+# Regex to detect whether a string ends with a sentence-terminal character.
+_TERMINAL_RE = re.compile(r"[.!?:\u2019\"'\u201d]\s*$")
+# Regex to detect whether a string starts with an uppercase letter (new sentence).
+_STARTS_UPPER_RE = re.compile(r"^[A-Z\u2018\u201c]")
+
+
+def merge_cross_page_sentences(blocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Issue 4 — Merge sentences that were split across page boundaries.
+
+    When a paragraph block ends without terminal punctuation (no period / colon /
+    question mark / exclamation) AND the very next non-boilerplate paragraph on
+    the following page starts with a lowercase letter (i.e. is a continuation),
+    the two blocks are merged into one.
+
+    Only paragraph/body types are merged.  Heading and list_item blocks are
+    never merged with adjacent blocks.
+    """
+    MERGEABLE_TYPES = {"paragraph"}
+    merged: List[Dict[str, Any]] = []
+    i = 0
+    merge_count = 0
+
+    while i < len(blocks):
+        current = blocks[i]
+        cur_type = current.get("type", "")
+        cur_text = current.get("text", "").rstrip()
+        cur_page = current.get("page_num", 0)
+
+        if (
+            cur_type in MERGEABLE_TYPES
+            and not current.get("is_boilerplate", False)
+            and cur_text
+            and not _TERMINAL_RE.search(cur_text)
+        ):
+            # Look ahead: find the next non-boilerplate block
+            j = i + 1
+            while j < len(blocks) and blocks[j].get("is_boilerplate", False):
+                j += 1
+
+            if j < len(blocks):
+                nxt = blocks[j]
+                nxt_type = nxt.get("type", "")
+                nxt_text = nxt.get("text", "").lstrip()
+                nxt_page = nxt.get("page_num", 0)
+
+                # Merge only if:
+                # (a) next block is a paragraph on the NEXT page, and
+                # (b) it continues with a lowercase letter (mid-sentence)
+                if (
+                    nxt_type in MERGEABLE_TYPES
+                    and nxt_page == cur_page + 1
+                    and nxt_text
+                    and not _STARTS_UPPER_RE.match(nxt_text)
+                ):
+                    # Merge: join text, keep current block's metadata
+                    current = dict(current)   # shallow copy so we don't mutate original
+                    current["text"] = cur_text + " " + nxt_text
+                    current["was_corrected"] = True
+                    # Skip the consumed next block
+                    blocks = blocks[:j] + blocks[j+1:]
+                    merge_count += 1
+                    logger.debug(
+                        f"Merged cross-page sentence: page {cur_page} -> {nxt_page}, "
+                        f"'{cur_text[-40:]}'... + '{nxt_text[:40]}...'"
+                    )
+
+        merged.append(current)
+        i += 1
+
+    if merge_count:
+        logger.info(f"CrossPageMerger: merged {merge_count} split sentence(s) across page breaks")
+
+    return merged
+
 
 def correct_extracted_blocks(blocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Convenience wrapper to apply content corrections to a list of block dicts.
+    Applies:
+      1. Per-block text corrections (OCR fixes, ligatures, emphasis, whitespace).
+      2. Cross-page sentence merging (Issue 4).
     """
     corrector = ContentCorrector()
-    return corrector.correct_document(blocks)
+    blocks = corrector.correct_document(blocks)
+    blocks = merge_cross_page_sentences(blocks)
+    return blocks

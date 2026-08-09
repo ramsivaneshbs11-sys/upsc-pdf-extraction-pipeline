@@ -39,7 +39,7 @@ def process_single_json(
     result = create_chunks(clean_data, max_chunk_size=chunk_size, overlap=chunk_overlap)
 
     # 3. Save preprocessed chunk JSON
-    out_name = f"{json_path.stem}_preprocessed.json"
+    out_name = f"{json_path.stem.strip()}_preprocessed.json"
     out_path = output_dir / out_name
 
     with open(out_path, "w", encoding="utf-8") as f:

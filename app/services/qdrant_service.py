@@ -18,6 +18,7 @@ Payload stored per point:
     }
 """
 import logging
+import uuid
 from typing import Any
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
@@ -124,6 +125,10 @@ def run_qdrant_upsert(
         # Build PointStruct list
         points: list[PointStruct] = []
         for chunk in embedded_chunks:
+            # Qdrant only accepts UUID or unsigned int as point ID.
+            # Generate a deterministic UUID5 from (file_id + chunk_id) for stability.
+            point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{file_id}:{chunk['chunk_id']}"))
+
             payload: dict[str, Any] = {
                 "file_id": file_id,
                 "chunk_id": chunk["chunk_id"],
@@ -134,7 +139,7 @@ def run_qdrant_upsert(
 
             points.append(
                 PointStruct(
-                    id=chunk["chunk_id"],
+                    id=point_id,
                     vector=chunk["vector"],
                     payload=payload,
                 )

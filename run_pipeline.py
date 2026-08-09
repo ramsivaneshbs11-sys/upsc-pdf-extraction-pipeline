@@ -69,7 +69,8 @@ def run_pipeline(
 
         # -- Stage A: Extraction ----------------------------------------------
         print(f"  STAGE 1 - Extraction")
-        file_extract_dir = extract_out_dir / pdf_file.stem   # outputs/<pdf_stem>/
+        clean_stem = pdf_file.stem.strip()
+        file_extract_dir = extract_out_dir / clean_stem   # outputs/<pdf_stem>/
         ok = process_single_pdf(pdf_file, file_extract_dir)
 
         if not ok:
@@ -78,7 +79,7 @@ def run_pipeline(
             continue
 
         extract_success.append(pdf_file.name)
-        json_path = file_extract_dir / f"{pdf_file.stem}_extracted.json"
+        json_path = file_extract_dir / f"{clean_stem}_extracted.json"
         print(f"  [OK] Extracted -> {json_path}")
 
         # -- Stage B: Preprocessing / Chunking --------------------------------

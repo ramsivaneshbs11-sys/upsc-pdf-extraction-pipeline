@@ -1,7 +1,7 @@
 """
 app/services/embedding_service.py
 ──────────────────────────────────
-Loads BAAI/bge-small-en-v1.5 once as a module-level singleton and
+Loads BAAI/bge-base-en-v1.5 once as a module-level singleton and
 embeds all chunks from a preprocessed JSON file.
 
 Returns:
@@ -12,7 +12,7 @@ Each embedded_chunk dict contains:
         "chunk_id":    str,
         "text":        str,
         "metadata":    dict,   # original metadata from the preprocessed JSON
-        "vector":      list[float],  # 384-dim embedding
+        "vector":      list[float],  # 768-dim embedding
     }
 """
 import json

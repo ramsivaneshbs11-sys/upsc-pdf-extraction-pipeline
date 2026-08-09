@@ -1,8 +1,7 @@
 """
 run_eval_sequential.py
 ──────────────────────
-Runs evaluation across all 7 embedding models sequentially, clearing memory
-between models to guarantee reliability on CPU/RAM constrained environments.
+Runs evaluation for the primary BGE-Base embedding model.
 """
 
 import sys

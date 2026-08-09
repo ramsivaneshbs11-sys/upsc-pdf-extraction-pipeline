@@ -30,7 +30,7 @@ PDF File + Classification (History / Anthropology)
      6. Text Preprocessing & Layout Chunking (status=preprocessing -> preprocessed)
                      │
                      ▼
-    7. BAAI/bge-small-en-v1.5 Embedding Generation (status=embedding)
+    7. BAAI/bge-base-en-v1.5 Embedding Generation (status=embedding)
                      │
                      ▼
    8. Qdrant Vector DB Ingestion per Classification (status=ingested)
@@ -89,7 +89,7 @@ Default `.env` configuration:
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/upsc_rag
 QDRANT_HOST=localhost
 QDRANT_PORT=6333
-EMBEDDING_MODEL_NAME=BAAI/bge-small-en-v1.5
+EMBEDDING_MODEL_NAME=BAAI/bge-base-en-v1.5
 ```
 
 ### 3. Install Python Dependencies

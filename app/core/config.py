@@ -36,9 +36,9 @@ QDRANT_COLLECTION_MAP: dict[str, str] = {
 
 # ── Embedding model ────────────────────────────────────────────────────────
 EMBEDDING_MODEL_NAME: str = os.environ.get(
-    "EMBEDDING_MODEL_NAME", "BAAI/bge-small-en-v1.5"
+    "EMBEDDING_MODEL_NAME", "BAAI/bge-base-en-v1.5"
 )
-EMBEDDING_DIMENSION: int = 384  # Output dimension of bge-small-en-v1.5
+EMBEDDING_DIMENSION: int = 768  # Output dimension of BAAI/bge-base-en-v1.5
 
 # Ensure directories exist on startup
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)

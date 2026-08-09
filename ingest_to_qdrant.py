@@ -5,7 +5,7 @@ Batch ingestion script: embeds all preprocessed JSONs and upserts to Qdrant.
 
 This script is for the case where extraction + preprocessing is already done
 (i.e., all data/preprocessed/*.json files exist), and we only need to:
-  1. Embed each chunk → 384-dim BGE vector
+  1. Embed each chunk → 768-dim BGE vector
   2. Upsert vectors to Qdrant collection
 
 Usage:
@@ -36,6 +36,8 @@ ROOT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT_DIR))
 os.environ["HF_HUB_DISABLE_SYMLINKS"] = "1"
 
+from app.core.config import EMBEDDING_DIMENSION as EMBEDDING_DIM
+
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
@@ -49,7 +51,6 @@ DIVIDER = "=" * 70
 # All P-01 and Semester-V folders are History subject material
 CLASSIFICATION = "History"
 QDRANT_COLLECTION = "history_collection"
-EMBEDDING_DIM = 384
 
 
 # ── Step 1: Qdrant client ────────────────────────────────────────────────────

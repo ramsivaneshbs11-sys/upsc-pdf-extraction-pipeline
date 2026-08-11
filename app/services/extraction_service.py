@@ -22,7 +22,7 @@ if str(_WORKSPACE_ROOT) not in sys.path:
     sys.path.insert(0, str(_WORKSPACE_ROOT))
 
 from extraction.document_validator import validate_pdf, audit_extraction
-from extraction.docling_extractor import extract_document
+from extraction.smart_router import route_extraction
 from extraction.json_builder import build_structured_json
 from app.core.config import EXTRACTED_DIR
 
@@ -59,16 +59,17 @@ def run_extraction(
         f"Size: {val_report.get('file_size_mb')} MB"
     )
 
-    # ── 2. Run Docling Extraction & Post-processing ───────────────────────────
+    # ── 2. Run Smart Router Extraction & Post-processing ─────────────────────
     doc_out_dir = EXTRACTED_DIR / file_id
     doc_out_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        raw_doc, extracted_data = extract_document(pdf_path, doc_out_dir)
+        raw_doc, extracted_data = route_extraction(pdf_path, doc_out_dir)
     except Exception as exc:
-        error_msg = f"Docling extraction failed: {exc}"
+        error_msg = f"Smart router extraction failed: {exc}"
         logger.exception(f"[{file_id}] {error_msg}")
         return False, None, error_msg
+
 
     if not extracted_data:
         error_msg = "Docling extraction returned empty data"

@@ -78,9 +78,15 @@ def _reading_order_key(block: Dict[str, Any]):
 def _sort_page_reading_order(p_blocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Sorts page blocks in layout-aware reading order:
-      1. Single-column pages: sorted strictly top-to-bottom (Y-descending), tie-breaking left-to-right on visual line bands.
-      2. Multi-column pages: top headers, left column top-to-bottom, right column top-to-bottom, footers.
-      3. Safety pass: swaps any adjacent blocks within the page where top-Y order is violated by > 5pt.
+      1. Single-column pages: sorted strictly top-to-bottom (Y-descending),
+         tie-breaking left-to-right on visual line bands.  A safety bubble-sort
+         then corrects any remaining out-of-order adjacent blocks within the
+         single column.
+      2. Multi-column pages: top headers, left column top-to-bottom, right column
+         top-to-bottom, footers.  NO global Y-comparator runs after the split,
+         because Docling's inverted-Y system means right-column top-of-page
+         blocks have HIGH bbox[1] values but must appear AFTER all left-column
+         blocks.  A cross-column bubble-sort would re-interleave them.
     """
     if not p_blocks:
         return []
@@ -130,22 +136,26 @@ def _sort_page_reading_order(p_blocks: List[Dict[str, Any]]) -> List[Dict[str, A
         left_col.sort(key=_reading_order_key)
         right_col.sort(key=_reading_order_key)
         res = top_headers + left_col + right_col + footers
-        logger.debug(f"Multi-column layout detected: {len(left_col)} left / {len(right_col)} right blocks")
+        logger.debug(
+            f"Multi-column layout detected: {len(left_col)} left / {len(right_col)} right blocks. "
+            "Cross-column bubble-sort skipped to preserve left-then-right reading order."
+        )
+        # A cross-column swap would re-interleave them.
     else:
         res = sorted(valid_blocks, key=_reading_order_key)
 
-    # ── Multi-pass Y-region safety sort (Issue 1 fix) ─────────────────────────
-    # Ensure no block later in res is physically HIGHER on page than an earlier block
-    # (top-Y greater by > 20pt), which prevents bottom multi-column lists/exercises
-    # from being sorted above top-of-page body headings.
-    for _ in range(len(res)):
-        swapped = False
-        for i in range(len(res) - 1):
-            if res[i+1]["bbox"][1] > res[i]["bbox"][1] + 20.0:
-                res[i], res[i+1] = res[i+1], res[i]
-                swapped = True
-        if not swapped:
-            break
+        # ── Single-column safety sort ─────────────────────────────────────────
+        # For single-column pages only: ensure no block later in res is physically
+        # HIGHER on page (top-Y greater by >20pt) than the one before it.
+        # This corrects any edge-case misordering without touching multi-column layout.
+        for _ in range(len(res)):
+            swapped = False
+            for i in range(len(res) - 1):
+                if res[i + 1]["bbox"][1] > res[i]["bbox"][1] + 20.0:
+                    res[i], res[i + 1] = res[i + 1], res[i]
+                    swapped = True
+            if not swapped:
+                break
 
     return res + no_bbox_blocks
 
